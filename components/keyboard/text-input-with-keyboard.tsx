@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState } from "react";
 import styled from "styled-components";
 import CustomKeyboard from "../customKeyboard";
@@ -6,12 +8,14 @@ import NumericKeyboard from "./number-input-with-keyboard";
 import { isValidRRN } from "@/lib/rrn";
 import { useProgressStore } from "@/store/progress-stage";
 
-const TextInputWithKeyboard: React.FC = () => {
-  // Store에서 데이터 저장 액션을 가져옵니다 (가정: setUserName, setUserRrn 등)
-  // 만약 Store에 이 기능이 없다면 아래 2번 항목을 참고하여 추가해주세요.
+interface Props {
+  onComplete?: (name: string) => void;
+}
+
+const TextInputWithKeyboard: React.FC<Props> = ({ onComplete }) => {
   const { setProgress } = useProgressStore(); 
 
-  const [inputProgress, setInputProgress] = useState(1);
+  const [inputProgress, setInputProgress] = useState(1); // 1: 이름, 2: 주민번호
   const [name, setName] = useState(""); 
   const [privateNumber, setPrivateNumber] = useState(""); 
 
@@ -30,23 +34,33 @@ const TextInputWithKeyboard: React.FC = () => {
 
   const isRrnValid = privateNumber.length > 0 && isValidRRN(privateNumber);
 
-  // [수정됨] 다음 버튼 클릭 핸들러
+  // ✅ [수정됨] 이름 입력 완료 핸들러
+  // 여기서 onComplete를 호출하면 부모가 페이지를 바꿔버리므로, 호출하지 않습니다!
+  const handleNameSubmit = () => {
+    if (!name.trim()) return;
+
+    // 내부 상태만 2단계(주민번호)로 변경 -> 화면이 리렌더링되며 주민번호 창이 뜸
+    setInputProgress(2);
+  };
+
+  // ✅ [수정됨] 주민번호까지 입력 후 '다음' 버튼 핸들러
+  // 여기서 비로소 부모에게 알립니다.
   const handleNextStep = async () => {
     if (!isRrnValid) return;
 
     try {
-      // 1. Store에 데이터 저장 (다음 페이지에서 쓰기 위함)
-      // setSubmitData({ name, rrn: privateNumber }); 
-      // 또는
-      // setUserName(name);
-      // setUserRrn(privateNumber);
-
-      // 2. (필요하다면) 여기서 API 호출
-      // console.log("데이터 전송:", name, privateNumber);
-      // await submitUserInfo({ name, rrn: privateNumber });
-
-      // 3. 모든 처리가 끝나면 다음 단계로 이동
-      setProgress(2);
+      // 1. 이름 저장 및 페이지 전환 요청 (부모에게 전달)
+      if (onComplete) {
+        onComplete(name); 
+        // 주의: 부모의 onComplete에서 setProgress(2)를 한다면 
+        // 아래의 setProgress(2)는 중복일 수 있으나, 안전을 위해 둡니다.
+      } else {
+        // onComplete가 없을 경우를 대비한 강제 이동
+        setProgress(2);
+      }
+      
+      // (필요하다면 여기에 주민번호 저장 로직 추가)
+      // 예: useProgressStore.setState({ userRrn: privateNumber }) 등
       
     } catch (error) {
       console.error("처리 중 오류 발생", error);
@@ -59,6 +73,7 @@ const TextInputWithKeyboard: React.FC = () => {
       <Card>
         <Title>{inputProgress === 1 ? "이름을 입력해주세요" : "주민번호를 입력해주세요"}</Title>
 
+        {/* --- 이름 입력 필드 --- */}
         <InputRow $focused={inputProgress === 1}>
           <InputLabel>이름</InputLabel>
           <InputDisplay>
@@ -66,6 +81,8 @@ const TextInputWithKeyboard: React.FC = () => {
           </InputDisplay>
         </InputRow>
 
+        {/* --- 주민번호 입력 필드 (2단계일 때 표시) --- */}
+        {/* inputProgress가 2일 때 이 부분이 확실히 렌더링됩니다 */}
         {inputProgress === 2 && (
           <div>
             <InputRow $focused={inputProgress === 2}>
@@ -83,14 +100,16 @@ const TextInputWithKeyboard: React.FC = () => {
         )}
 
         <KeyboardArea>
+          {/* 1단계: 한글 키보드 */}
           {inputProgress === 1 && (
             <CustomKeyboard
               text={name}
               setText={setName}
-              onEnter={() => setInputProgress(2)}
+              onEnter={handleNameSubmit} // 엔터 -> 2단계로 이동
             />
           )}
 
+          {/* 2단계: 숫자 키보드 */}
           {inputProgress === 2 && (
             <>
               <NumericKeyboard
@@ -100,7 +119,7 @@ const TextInputWithKeyboard: React.FC = () => {
               <NextButton
                 type="button"
                 disabled={!isRrnValid}
-                onClick={handleNextStep}
+                onClick={handleNextStep} // 클릭 -> 부모 페이지 전환
               >
                 다음
               </NextButton>

@@ -21,7 +21,7 @@ export interface CheckupQuestion {
 }
 
 /* ============================================================
-   1. 답변 프리셋 (재사용할 옵션들 정의)
+  1. 답변 프리셋 (재사용할 옵션들 정의)
    ============================================================ */
 
 // [기본] 5점 척도
@@ -148,7 +148,7 @@ export const CHECKUP_QUESTIONS: CheckupQuestion[] = [
   // 🔴 [수정] 년수 질문
   {
     id: 6, category: "흡연기간", type: "select",
-    question: "총 몇 년 정도 담배를 피우셨습니까?",
+    question: "총 몇 년 정도 담배를 피우셨습니까?, 번호로 말씀 해주세요",
     options: OPT_YEARS, // ✅ 년수 옵션 적용
     dependency: { targetId: 5, answerValue: 2 },
     isReverse: true,
@@ -340,8 +340,8 @@ export const CHECKUP_QUESTIONS: CheckupQuestion[] = [
     question: "채소, 과일, 유제품, 단백질을 매일 드십니까?",
     options: [
       { value: 1, label: "아닌 편이다" },
-      { value: 3, label: "보통이다" },
-      { value: 5, label: "항상 그렇다" },
+      { value: 2, label: "보통이다" },
+      { value: 3, label: "항상 그렇다" },
     ],
     isReverse: false,
   },
@@ -350,8 +350,8 @@ export const CHECKUP_QUESTIONS: CheckupQuestion[] = [
     question: "짠 음식, 튀김, 단 음료 등을 자주 드십니까?",
     options: [
       { value: 1, label: "아닌 편이다" },
-      { value: 3, label: "보통이다" },
-      { value: 5, label: "항상 그렇다" },
+      { value: 2, label: "보통이다" },
+      { value: 3, label: "항상 그렇다" },
     ],
     isReverse: true,
   },
@@ -360,8 +360,8 @@ export const CHECKUP_QUESTIONS: CheckupQuestion[] = [
     question: "세끼를 규칙적으로 드시고 외식을 자제하십니까?",
     options: [
       { value: 1, label: "아닌 편이다" },
-      { value: 3, label: "보통이다" },
-      { value: 5, label: "항상 그렇다" },
+      { value: 2, label: "보통이다" },
+      { value: 3, label: "항상 그렇다" },
     ],
     isReverse: false,
   },

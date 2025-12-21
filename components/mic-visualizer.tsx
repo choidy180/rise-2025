@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React from "react";
 import styled, { keyframes, css } from "styled-components";
 
 interface Props {
@@ -8,203 +8,109 @@ interface Props {
 }
 
 export default function MicVisualizer({ isListening }: Props) {
-  const [volume, setVolume] = useState(0);
-  
-  // Refs for Audio API
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const analyserRef = useRef<AnalyserNode | null>(null);
-  const dataArrayRef = useRef<Uint8Array | null>(null);
-  const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
-  const rafIdRef = useRef<number | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-
-  useEffect(() => {
-    // 이펙트 내부에서 사용할 유효성 플래그
-    let isCancelled = false;
-
-    const startVisualizer = async () => {
-      try {
-        if (!navigator.mediaDevices) return;
-
-        // 1. 스트림 요청 (비동기)
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-
-        // 중요: await 하는 동안 컴포넌트가 언마운트되거나 isListening이 꺼졌다면
-        // 즉시 스트림을 닫고 종료해야 함 (Race Condition 방지)
-        if (isCancelled) {
-          stream.getTracks().forEach((track) => track.stop());
-          return;
-        }
-
-        streamRef.current = stream;
-
-        // 2. AudioContext 설정
-        const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-        if (!AudioContext) return;
-
-        const ctx = new AudioContext();
-        audioContextRef.current = ctx;
-
-        const analyser = ctx.createAnalyser();
-        analyser.fftSize = 256;
-        analyserRef.current = analyser;
-
-        const source = ctx.createMediaStreamSource(stream);
-        source.connect(analyser);
-        sourceRef.current = source;
-
-        const bufferLength = analyser.frequencyBinCount;
-        const dataArray = new Uint8Array(bufferLength);
-        dataArrayRef.current = dataArray;
-
-        // 3. 애니메이션 루프 시작
-        updateVolume();
-      } catch (e) {
-        console.error("Mic visualizer error:", e);
-      }
-    };
-
-    const updateVolume = () => {
-      if (isCancelled) return; // 취소된 경우 루프 중단
-
-      if (!analyserRef.current || !dataArrayRef.current) return;
-
-      analyserRef.current.getByteFrequencyData(dataArrayRef.current);
-
-      let sum = 0;
-      const len = dataArrayRef.current.length;
-      for (let i = 0; i < len; i++) {
-        sum += dataArrayRef.current[i];
-      }
-      const avg = sum / len;
-
-      setVolume(avg);
-      rafIdRef.current = requestAnimationFrame(updateVolume);
-    };
-
-    // 로직 실행
-    if (isListening) {
-      startVisualizer();
-    } else {
-      // isListening이 false일 때는 볼륨 초기화
-      setVolume(0);
-    }
-
-    // Cleanup 함수
-    return () => {
-      isCancelled = true; // 플래그를 true로 설정하여 진행 중인 비동기 작업 무효화
-
-      if (rafIdRef.current) {
-        cancelAnimationFrame(rafIdRef.current);
-      }
-
-      if (audioContextRef.current) {
-        // AudioContext는 닫아주는 것이 메모리 누수 방지에 좋음
-        audioContextRef.current.close().catch(() => {});
-        audioContextRef.current = null;
-      }
-
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((track) => track.stop());
-        streamRef.current = null;
-      }
-      
-      // 소스 노드 연결 해제 (Optional, but good practice)
-      if (sourceRef.current) {
-        sourceRef.current.disconnect();
-        sourceRef.current = null;
-      }
-    };
-  }, [isListening]);
-
-  // 볼륨 계산 (기존 로직 유지)
-  const h1 = Math.min(100, Math.max(10, volume * 1.5));
-  const h2 = Math.min(100, Math.max(10, volume * 2.0));
-  const h3 = Math.min(100, Math.max(10, volume * 1.2));
-
   return (
-    <Container $active={isListening}>
-      <Label>{isListening ? "Listening..." : "Mic Off"}</Label>
-      <Visualizer>
-        <Bar style={{ height: `${h1}%` }} />
-        <Bar style={{ height: `${h2}%` }} $delay />
-        <Bar style={{ height: `${h3}%` }} />
-      </Visualizer>
-      <StatusDot $active={isListening} />
-    </Container>
+    <FloatingIsland $active={isListening}>
+      <IconWrapper>
+        {/* 마이크 아이콘 */}
+        <MicIcon viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z" />
+          <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z" />
+        </MicIcon>
+        
+        {/* 애니메이션 바 */}
+        <WaveContainer>
+          <Bar $delay={0.0} $active={isListening} />
+          <Bar $delay={0.2} $active={isListening} />
+          <Bar $delay={0.4} $active={isListening} />
+          <Bar $delay={0.1} $active={isListening} />
+          <Bar $delay={0.3} $active={isListening} />
+        </WaveContainer>
+      </IconWrapper>
+      
+      <StatusText>
+        {isListening ? "지금 말씀해주세요" : "잠시만 기다려주세요..."}
+      </StatusText>
+    </FloatingIsland>
   );
 }
 
-// --- Styles (기존과 동일) ---
-const fadeIn = keyframes`
-  from { opacity: 0; transform: translateY(-10px); }
-  to { opacity: 1; transform: translateY(0); }
-`;
-
+// --- Animations ---
 const pulse = keyframes`
-  0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
-  70% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+  0% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.7); }
+  70% { box-shadow: 0 0 0 15px rgba(99, 102, 241, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); }
 `;
 
-const Container = styled.div<{ $active: boolean }>`
+const wave = keyframes`
+  0%, 100% { height: 8px; }
+  50% { height: 24px; }
+`;
+
+// --- Styles ---
+const FloatingIsland = styled.div<{ $active: boolean }>`
   position: fixed;
-  top: 24px;
-  right: 24px;
-  z-index: 9999;
+  bottom: 40px; /* 화면 하단 배치 */
+  left: 50%;
+  transform: translateX(-50%) ${({ $active }) => ($active ? "scale(1)" : "scale(0.9)")};
   
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
   
-  padding: 10px 16px;
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(8px);
-  border-radius: 30px;
-  border: 1px solid rgba(255,255,255,0.6);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  padding: 16px 32px;
+  border-radius: 50px;
+  background: ${({ $active }) => ($active ? "#1e293b" : "#94a3b8")}; /* 활성 시 진한 남색 */
+  color: white;
+  
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+  opacity: ${({ $active }) => ($active ? 1 : 0)}; /* 안들을 땐 숨김 */
+  pointer-events: none;
+  z-index: 100;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 
-  transition: all 0.3s ease;
-  animation: ${fadeIn} 0.5s ease-out;
-
-  opacity: ${({ $active }) => ($active ? 1 : 0.6)};
-  filter: ${({ $active }) => ($active ? "none" : "grayscale(100%)")};
+  /* 듣고 있을 때 글로우 효과 및 펄스 */
+  ${({ $active }) => $active && css`
+    border: 2px solid #6366f1;
+    animation: ${pulse} 2s infinite;
+  `}
 `;
 
-const Label = styled.span`
-  font-size: 13px;
-  font-weight: 600;
-  color: #334155;
-  letter-spacing: -0.3px;
-`;
-
-const Visualizer = styled.div`
+const IconWrapper = styled.div`
   display: flex;
   align-items: center;
-  gap: 3px;
-  height: 16px;
-  width: 24px;
-`;
-
-const Bar = styled.div<{ $delay?: boolean }>`
-  width: 4px;
-  background: #6366f1;
-  border-radius: 4px;
-  min-height: 4px;
-  transition: height 0.1s ease;
-  display: flex;
-  align-self: center;
-`;
-
-const StatusDot = styled.div<{ $active: boolean }>`
-  width: 8px;
-  height: 8px;
+  justify-content: center;
+  position: relative;
+  width: 40px;
+  height: 40px;
+  background: #4f46e5;
   border-radius: 50%;
-  background-color: ${({ $active }) => ($active ? "#ef4444" : "#cbd5e1")};
+`;
+
+const MicIcon = styled.svg`
+  width: 24px;
+  height: 24px;
+  color: white;
+`;
+
+const WaveContainer = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 30px;
+`;
+
+const Bar = styled.div<{ $delay: number; $active: boolean }>`
+  width: 4px;
+  background: #818cf8;
+  border-radius: 4px;
+  height: 8px;
   
-  ${({ $active }) =>
-    $active &&
-    css`
-      animation: ${pulse} 2s infinite;
-    `}
+  animation: ${({ $active }) => $active ? css`${wave} 1s ease-in-out infinite` : "none"};
+  animation-delay: ${({ $delay }) => $delay}s;
+`;
+
+const StatusText = styled.span`
+  font-size: 18px;
+  font-weight: 700;
+  white-space: nowrap;
 `;
