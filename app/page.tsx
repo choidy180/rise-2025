@@ -8,6 +8,7 @@ import { useProgressStore } from "@/store/progress-stage";
 import TextInputWithKeyboard from "@/components/keyboard/text-input-with-keyboard";
 import { generateHealthReport } from "@/utils/survey-summary"; 
 import ResultPage from "@/components/result-page"; 
+import VoiceChatBot from "@/components/voice-chatBot";
 
 export default function Home() {
   const { progress, setProgress } = useProgressStore();
@@ -43,6 +44,7 @@ export default function Home() {
             <TextInputWithKeyboard 
                 onComplete={handleNameSubmit} // 이 부분은 TextInputWithKeyboard 구현에 맞춰 수정 필요
             />
+            // <VoiceChatBot/>
         )}
         
         {progress === 2 && (
