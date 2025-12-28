@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import styled from "styled-components";
 import CustomKeyboard from "../customKeyboard";
 import "react-simple-keyboard/build/css/index.css";
@@ -13,11 +13,11 @@ interface Props {
 }
 
 const TextInputWithKeyboard: React.FC<Props> = ({ onComplete }) => {
-  const { setProgress } = useProgressStore(); 
+  const { setProgress } = useProgressStore();
 
   const [inputProgress, setInputProgress] = useState(1); // 1: 이름, 2: 주민번호
-  const [name, setName] = useState(""); 
-  const [privateNumber, setPrivateNumber] = useState(""); 
+  const [name, setName] = useState("");
+  const [privateNumber, setPrivateNumber] = useState("");
 
   const handlePrivateNumberChange: React.Dispatch<React.SetStateAction<string>> = (updater) => {
     setPrivateNumber((prev) => {
@@ -27,41 +27,36 @@ const TextInputWithKeyboard: React.FC<Props> = ({ onComplete }) => {
     });
   };
 
-  const formattedRrn =
-    privateNumber.length <= 6
-      ? privateNumber
-      : `${privateNumber.slice(0, 6)}-${privateNumber.slice(6)}`;
+  const formattedRrn = useMemo(() => {
+    if (privateNumber.length <= 6) {
+      return privateNumber;
+    }
+    const front = privateNumber.slice(0, 6);
+    const backRaw = privateNumber.slice(6);
+    const gender = backRaw.slice(0, 1);
+    
+    const maskCount = Math.max(0, backRaw.length - 1);
+    const mask = "●".repeat(maskCount); 
+
+    return `${front}-${gender}${mask}`;
+  }, [privateNumber]);
 
   const isRrnValid = privateNumber.length > 0 && isValidRRN(privateNumber);
 
-  // ✅ [수정됨] 이름 입력 완료 핸들러
-  // 여기서 onComplete를 호출하면 부모가 페이지를 바꿔버리므로, 호출하지 않습니다!
   const handleNameSubmit = () => {
     if (!name.trim()) return;
-
-    // 내부 상태만 2단계(주민번호)로 변경 -> 화면이 리렌더링되며 주민번호 창이 뜸
     setInputProgress(2);
   };
 
-  // ✅ [수정됨] 주민번호까지 입력 후 '다음' 버튼 핸들러
-  // 여기서 비로소 부모에게 알립니다.
   const handleNextStep = async () => {
     if (!isRrnValid) return;
 
     try {
-      // 1. 이름 저장 및 페이지 전환 요청 (부모에게 전달)
       if (onComplete) {
-        onComplete(name); 
-        // 주의: 부모의 onComplete에서 setProgress(2)를 한다면 
-        // 아래의 setProgress(2)는 중복일 수 있으나, 안전을 위해 둡니다.
+        onComplete(name);
       } else {
-        // onComplete가 없을 경우를 대비한 강제 이동
         setProgress(2);
       }
-      
-      // (필요하다면 여기에 주민번호 저장 로직 추가)
-      // 예: useProgressStore.setState({ userRrn: privateNumber }) 등
-      
     } catch (error) {
       console.error("처리 중 오류 발생", error);
       alert("오류가 발생했습니다.");
@@ -82,12 +77,12 @@ const TextInputWithKeyboard: React.FC<Props> = ({ onComplete }) => {
         </InputRow>
 
         {/* --- 주민번호 입력 필드 (2단계일 때 표시) --- */}
-        {/* inputProgress가 2일 때 이 부분이 확실히 렌더링됩니다 */}
         {inputProgress === 2 && (
           <div>
             <InputRow $focused={inputProgress === 2}>
               <InputLabel>주민번호</InputLabel>
               <InputDisplay>
+                {/* formattedRrn 변수가 마스킹된 값을 보여줍니다 */}
                 {privateNumber ? formattedRrn : <Placeholder>주민번호</Placeholder>}
               </InputDisplay>
             </InputRow>
@@ -105,7 +100,7 @@ const TextInputWithKeyboard: React.FC<Props> = ({ onComplete }) => {
             <CustomKeyboard
               text={name}
               setText={setName}
-              onEnter={handleNameSubmit} // 엔터 -> 2단계로 이동
+              onEnter={handleNameSubmit}
             />
           )}
 
@@ -119,7 +114,7 @@ const TextInputWithKeyboard: React.FC<Props> = ({ onComplete }) => {
               <NextButton
                 type="button"
                 disabled={!isRrnValid}
-                onClick={handleNextStep} // 클릭 -> 부모 페이지 전환
+                onClick={handleNextStep}
               >
                 다음
               </NextButton>
@@ -197,10 +192,14 @@ const InputDisplay = styled.div`
   min-height: 22px;
   display: flex;
   align-items: center;
+  letter-spacing: 1px; /* 마스킹 문자 간격 조정을 위해 추가 */
+  font-style: normal; /* 기울임체 제거 */
 `;
 
 const Placeholder = styled.span`
   color: #9ca3af;
+  letter-spacing: normal;
+  font-style: normal; /* 기울임체 제거 */
 `;
 
 const KeyboardArea = styled.div`

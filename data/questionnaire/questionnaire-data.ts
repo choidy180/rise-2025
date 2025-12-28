@@ -101,7 +101,7 @@ const OPT_SCALE_3: AnswerOption[] = [
 ];
 
 /* ============================================================
-   2. 질문 리스트 (options 필드 필수 확인)
+  2. 질문 리스트 (options 필드 필수 확인)
    ============================================================ */
 export const CHECKUP_QUESTIONS: CheckupQuestion[] = [
   // --- 1. 질환력 ---
@@ -129,55 +129,67 @@ export const CHECKUP_QUESTIONS: CheckupQuestion[] = [
   },
 
   // --- 2. 흡연 (일반담배) ---
+  // ✅ [추가됨] ID: 4 - 가장 기초적인 흡연 경험 질문
   {
-    id: 4, category: "흡연경험", type: "yesno",
-    question: "평생 담배를 5갑(100개비) 이상 피운 적이 있습니까?",
+    id: 4, category: "흡연경험_기초", type: "yesno",
+    question: "담배를 피우신 적이 있습니까?",
     options: OPT_YESNO,
     isReverse: true,
   },
+  // ⬇️ 기존 ID 4 -> 5로 변경 (dependency: 4번 질문 '예'일 때 표시)
   {
-    id: 5, category: "현재흡연", type: "select",
+    id: 5, category: "흡연경험_100개비", type: "yesno",
+    question: "평생 담배를 5갑(100개비) 이상 피운 적이 있습니까?",
+    options: OPT_YESNO,
+    dependency: { targetId: 4, answerValue: 2 }, // 4번 '예'일 때
+    isReverse: true,
+  },
+  // ⬇️ 기존 ID 5 -> 6로 변경 (dependency: 5번 질문 '예'일 때 표시)
+  {
+    id: 6, category: "현재흡연", type: "select",
     question: "현재 담배를 피우십니까?",
     options: [
       { value: 1, label: "피우지 않음" },
       { value: 2, label: "현재 피움" },
     ],
-    dependency: { targetId: 4, answerValue: 2 },
+    dependency: { targetId: 5, answerValue: 2 }, // 5번 '예'일 때
     isReverse: true,
   },
-  // 🔴 [수정] 년수 질문
+  // ⬇️ 기존 ID 6 -> 7 (dependency update: targetId 5 -> 6)
   {
-    id: 6, category: "흡연기간", type: "select",
+    id: 7, category: "흡연기간", type: "select",
     question: "총 몇 년 정도 담배를 피우셨습니까?, 번호로 말씀 해주세요",
-    options: OPT_YEARS, // ✅ 년수 옵션 적용
-    dependency: { targetId: 5, answerValue: 2 },
+    options: OPT_YEARS,
+    dependency: { targetId: 6, answerValue: 2 }, // 6번 '현재 피움'
     isReverse: true,
   },
-  // 🔴 [수정] 개비 질문 (사용자 지적 사항)
+  // ⬇️ 기존 ID 7 -> 8 (dependency update: targetId 5 -> 6)
   {
-    id: 7, category: "흡연량", type: "select",
+    id: 8, category: "흡연량", type: "select",
     question: "하루에 평균적으로 몇 개비나 피우십니까?",
-    options: OPT_CIGAR_AMOUNT, // ✅ 개비 옵션 적용
-    dependency: { targetId: 5, answerValue: 2 },
+    options: OPT_CIGAR_AMOUNT,
+    dependency: { targetId: 6, answerValue: 2 }, // 6번 '현재 피움'
     isReverse: true,
   },
-  // 과거 흡연자용
+  // ⬇️ 기존 ID 8 -> 9 (dependency update: targetId 5 -> 6)
   {
-    id: 8, category: "과거흡연기간", type: "select",
+    id: 9, category: "과거흡연기간", type: "select",
     question: "과거에 총 몇 년 정도 담배를 피우셨습니까?",
-    options: OPT_YEARS, // ✅ 년수 옵션
-    dependency: { targetId: 5, answerValue: 1 },
+    options: OPT_YEARS,
+    dependency: { targetId: 6, answerValue: 1 }, // 6번 '피우지 않음'
     isReverse: true,
   },
+  // ⬇️ 기존 ID 9 -> 10 (dependency update: targetId 5 -> 6)
   {
-    id: 9, category: "과거흡연량", type: "select",
+    id: 10, category: "과거흡연량", type: "select",
     question: "피우셨을 때 하루 평균 몇 개비 정도 피우셨습니까?",
-    options: OPT_CIGAR_AMOUNT, // ✅ 개비 옵션
-    dependency: { targetId: 5, answerValue: 1 },
+    options: OPT_CIGAR_AMOUNT,
+    dependency: { targetId: 6, answerValue: 1 }, // 6번 '피우지 않음'
     isReverse: true,
   },
+  // ⬇️ 기존 ID 10 -> 11 (dependency update: targetId 5 -> 6)
   {
-    id: 10, category: "금연기간", type: "select",
+    id: 11, category: "금연기간", type: "select",
     question: "담배를 끊은 지 얼마나 되셨습니까?",
     options: [
       { value: 1, label: "1년 미만" },
@@ -186,114 +198,114 @@ export const CHECKUP_QUESTIONS: CheckupQuestion[] = [
       { value: 4, label: "10년 이상" },
       { value: 5, label: "20년 이상" },
     ],
-    dependency: { targetId: 5, answerValue: 1 },
+    dependency: { targetId: 6, answerValue: 1 }, // 6번 '피우지 않음'
     isReverse: false,
   },
 
-  // --- 3. 전자담배 ---
+  // --- 3. 전자담배 (ID 11 -> 12부터 시작) ---
   {
-    id: 11, category: "전자담배", type: "yesno",
+    id: 12, category: "전자담배", type: "yesno",
     question: "궐련형 전자담배(아이코스 등)를 피운 적이 있습니까?",
     options: OPT_YESNO,
     isReverse: true,
   },
   {
-    id: 12, category: "전자담배현재", type: "select",
+    id: 13, category: "전자담배현재", type: "select",
     question: "현재 궐련형 전자담배를 피우십니까?",
     options: [
       { value: 1, label: "안 피움" },
       { value: 2, label: "현재 피움" },
     ],
-    dependency: { targetId: 11, answerValue: 2 },
+    dependency: { targetId: 12, answerValue: 2 }, // ID 변경 반영
     isReverse: true,
   },
   {
-    id: 13, category: "전자담배기간", type: "select",
+    id: 14, category: "전자담배기간", type: "select",
     question: "궐련형 전자담배를 총 몇 년 사용하셨습니까?",
-    options: OPT_YEARS, // ✅ 년수 옵션
-    dependency: { targetId: 12, answerValue: 2 },
+    options: OPT_YEARS,
+    dependency: { targetId: 13, answerValue: 2 }, // ID 변경 반영
     isReverse: true,
   },
   {
-    id: 14, category: "전자담배량", type: "select",
+    id: 15, category: "전자담배량", type: "select",
     question: "하루 평균 몇 개비 정도 사용하십니까?",
-    options: OPT_CIGAR_AMOUNT, // ✅ 개비 옵션
-    dependency: { targetId: 12, answerValue: 2 },
+    options: OPT_CIGAR_AMOUNT,
+    dependency: { targetId: 13, answerValue: 2 }, // ID 변경 반영
     isReverse: true,
   },
   // 액상형
   {
-    id: 15, category: "액상경험", type: "yesno",
+    id: 16, category: "액상경험", type: "yesno",
     question: "액상형 전자담배를 사용한 경험이 있습니까?",
     options: OPT_YESNO,
     isReverse: true,
   },
   {
-    id: 16, category: "액상빈도", type: "select",
+    id: 17, category: "액상빈도", type: "select",
     question: "최근 한 달간 액상형 전자담배를 얼마나 사용하셨습니까?",
-    options: OPT_FREQ_MONTH, // ✅ 월간 빈도 옵션
-    dependency: { targetId: 15, answerValue: 2 },
+    options: OPT_FREQ_MONTH,
+    dependency: { targetId: 16, answerValue: 2 }, // ID 변경 반영
     isReverse: true,
   },
 
-  // --- 4. 음주 ---
+  // --- 4. 음주 (ID 17 -> 18부터 시작) ---
   {
-    id: 17, category: "음주빈도", type: "select",
+    id: 18, category: "음주빈도", type: "select",
     question: "지난 1년 동안 술을 얼마나 자주 드셨습니까?",
-    options: OPT_FREQ_MONTH, // ✅ 월간 빈도 옵션
+    options: OPT_FREQ_MONTH,
     isReverse: true,
   },
   {
-    id: 18, category: "음주량", type: "select",
+    id: 19, category: "음주량", type: "select",
     question: "술을 마시는 날에는 보통 몇 잔 드십니까? (소주/맥주 잔 기준)",
-    options: OPT_DRINK_AMOUNT, // ✅ 잔 수 옵션
-    dependency: { targetId: 17, answerValue: [2, 3, 4, 5] },
+    options: OPT_DRINK_AMOUNT,
+    dependency: { targetId: 18, answerValue: [2, 3, 4, 5] }, // ID 변경 반영
     isReverse: true,
   },
 
-  // --- 5. 신체활동 (운동) ---
+  // --- 5. 신체활동 (운동) (ID 19 -> 20부터 시작) ---
   {
-    id: 19, category: "고강도빈도", type: "select",
+    id: 20, category: "고강도빈도", type: "select",
     question: "숨이 많이 찰 정도의 고강도 운동(달리기, 등산 등)을 일주일에 며칠 하십니까?",
-    options: OPT_FREQ_WEEK, // ✅ 주간 빈도 옵션
+    options: OPT_FREQ_WEEK,
     isReverse: false,
   },
   {
-    id: 20, category: "고강도시간", type: "select",
+    id: 21, category: "고강도시간", type: "select",
     question: "고강도 운동을 하는 날은 보통 몇 시간 하십니까?",
-    options: OPT_TIME_DURATION, // ✅ 시간 옵션
-    dependency: { targetId: 19, answerValue: [2, 3, 4, 5] },
+    options: OPT_TIME_DURATION,
+    dependency: { targetId: 20, answerValue: [2, 3, 4, 5] }, // ID 변경 반영
     isReverse: false,
   },
   {
-    id: 21, category: "중강도빈도", type: "select",
+    id: 22, category: "중강도빈도", type: "select",
     question: "숨이 약간 찰 정도의 운동(빠르게 걷기 등)을 일주일에 며칠 하십니까?",
-    options: OPT_FREQ_WEEK, // ✅ 주간 빈도 옵션
+    options: OPT_FREQ_WEEK,
     isReverse: false,
   },
   {
-    id: 22, category: "중강도시간", type: "select",
+    id: 23, category: "중강도시간", type: "select",
     question: "중강도 운동을 하는 날은 보통 몇 시간 하십니까?",
-    options: OPT_TIME_DURATION, // ✅ 시간 옵션
-    dependency: { targetId: 21, answerValue: [2, 3, 4, 5] },
+    options: OPT_TIME_DURATION,
+    dependency: { targetId: 22, answerValue: [2, 3, 4, 5] }, // ID 변경 반영
     isReverse: false,
   },
   {
-    id: 23, category: "근력운동", type: "select",
+    id: 24, category: "근력운동", type: "select",
     question: "근력 운동(헬스, 아령 등)을 일주일에 며칠 하십니까?",
-    options: OPT_FREQ_WEEK, // ✅ 주간 빈도 옵션
+    options: OPT_FREQ_WEEK,
     isReverse: false,
   },
 
-  // --- 6. 노인기능 ---
+  // --- 6. 노인기능 (ID 24 -> 25부터 시작) ---
   {
-    id: 24, category: "예방접종", type: "yesno",
+    id: 25, category: "예방접종", type: "yesno",
     question: "최근 1년 내 독감/폐렴구균 예방접종을 받으셨습니까?",
     options: OPT_YESNO,
     isReverse: false,
   },
   {
-    id: 25, category: "일상생활", type: "select",
+    id: 26, category: "일상생활", type: "select",
     question: "식사, 옷 입기, 목욕, 외출 등을 혼자서 잘 하십니까?",
     options: [
       { value: 1, label: "도움이 필요함" },
@@ -302,41 +314,41 @@ export const CHECKUP_QUESTIONS: CheckupQuestion[] = [
     isReverse: false,
   },
   {
-    id: 26, category: "낙상", type: "yesno",
+    id: 27, category: "낙상", type: "yesno",
     question: "지난 6개월 동안 넘어진 적이 있습니까?",
     options: OPT_YESNO,
     isReverse: true,
   },
   {
-    id: 27, category: "배뇨장애", type: "yesno",
+    id: 28, category: "배뇨장애", type: "yesno",
     question: "소변을 지리거나 보는데 어려움이 있습니까?",
     options: OPT_YESNO,
     isReverse: true,
   },
 
-  // --- 7. 인지기능 (3점 척도) ---
+  // --- 7. 인지기능 (ID 28 -> 29부터 시작) ---
   {
-    id: 28, category: "기억력", type: "select",
+    id: 29, category: "기억력", type: "select",
     question: "1년 전보다 날짜, 약속, 물건 둔 곳을 기억하기 어려우십니까?",
-    options: OPT_SCALE_3, // ✅ 3점 척도 적용
+    options: OPT_SCALE_3,
     isReverse: true,
   },
   {
-    id: 29, category: "판단력", type: "select",
+    id: 30, category: "판단력", type: "select",
     question: "계산이 서툴러지거나 길을 잃은 적이 있습니까?",
-    options: OPT_SCALE_3, // ✅ 3점 척도 적용
+    options: OPT_SCALE_3,
     isReverse: true,
   },
   {
-    id: 30, category: "성격변화", type: "select",
+    id: 31, category: "성격변화", type: "select",
     question: "예전에 비해 성격이 변했거나 만사가 귀찮아지셨습니까?",
-    options: OPT_SCALE_3, // ✅ 3점 척도 적용
+    options: OPT_SCALE_3,
     isReverse: true,
   },
 
-  // --- 8. 영양 (3점 척도) ---
+  // --- 8. 영양 (ID 31 -> 32부터 시작) ---
   {
-    id: 31, category: "건강식", type: "select",
+    id: 32, category: "건강식", type: "select",
     question: "채소, 과일, 유제품, 단백질을 매일 드십니까?",
     options: [
       { value: 1, label: "아닌 편이다" },
@@ -346,7 +358,7 @@ export const CHECKUP_QUESTIONS: CheckupQuestion[] = [
     isReverse: false,
   },
   {
-    id: 32, category: "주의식", type: "select",
+    id: 33, category: "주의식", type: "select",
     question: "짠 음식, 튀김, 단 음료 등을 자주 드십니까?",
     options: [
       { value: 1, label: "아닌 편이다" },
@@ -356,7 +368,7 @@ export const CHECKUP_QUESTIONS: CheckupQuestion[] = [
     isReverse: true,
   },
   {
-    id: 33, category: "규칙식사", type: "select",
+    id: 34, category: "규칙식사", type: "select",
     question: "세끼를 규칙적으로 드시고 외식을 자제하십니까?",
     options: [
       { value: 1, label: "아닌 편이다" },

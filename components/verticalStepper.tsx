@@ -8,7 +8,8 @@ import {
   useState,
   useCallback,
 } from "react";
-import styled from "styled-components";
+// ✅ [수정] keyframes import 추가
+import styled, { keyframes } from "styled-components";
 import MicVisualizer from "./mic-visualizer"; 
 import { CHECKUP_QUESTIONS, AnswerOption } from "@/data/questionnaire/questionnaire-data";
 
@@ -93,7 +94,7 @@ function matchVoiceToOption(spokenText: string, options: AnswerOption[]): number
       label.includes("않음") || 
       label.includes("없음") || 
       label.includes("안함") || 
-      label.includes("비흡연") ||
+      label.includes("비흡연") || 
       label.includes("전혀")
     ) {
       keywords.push("아니", "아니요", "노", "no", "never", "아뇨", "안해", "안피워", "안펴", "끊었어", "없어", "안먹어");
@@ -573,7 +574,13 @@ export default function VerticalStepper({
   );
 }
 
-// --- Styles (동일함) ---
+// --- Styles ---
+
+// ✅ [수정] Keyframes를 별도로 정의해야 styled-components 문법 오류 방지
+const popIn = keyframes`
+  from { transform: scale(0.9); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+`;
 
 const ModalOverlay = styled.div`
   position: absolute;
@@ -589,6 +596,7 @@ const ModalOverlay = styled.div`
   backdrop-filter: blur(5px);
 `;
 
+// ✅ [수정] 정의된 keyframes 변수를 사용
 const ModalContent = styled.div`
   background: white;
   padding: 32px;
@@ -597,12 +605,7 @@ const ModalContent = styled.div`
   max-width: 360px;
   text-align: center;
   box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-  animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-
-  @keyframes popIn {
-    from { transform: scale(0.9); opacity: 0; }
-    to { transform: scale(1); opacity: 1; }
-  }
+  animation: ${popIn} 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 `;
 
 const ModalTitle = styled.h3`
