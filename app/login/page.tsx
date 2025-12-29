@@ -7,7 +7,6 @@ import { collection, getDocs, limit, query, where } from "firebase/firestore";
 import { hashRRN, maskRRN } from "@/lib/rrn";
 
 import { useAuthStore } from "@/store/auth";            // persist된 auth(권장)
-import { useUserStore } from "@/store/user-state";      // 기존 사용자 상태(있다면)
 import { useProgressStore } from "@/store/progress-stage"; // 진행도
 
 export default function LoginRrnBox() {
@@ -17,7 +16,6 @@ export default function LoginRrnBox() {
   const [err, setErr] = useState<string | null>(null);
 
   const { login } = useAuthStore();
-  const { setUserState } = useUserStore();
   const { setProgress } = useProgressStore();
 
   // 주민번호 입력 시 자동 하이픈
@@ -63,7 +61,6 @@ export default function LoginRrnBox() {
       });
 
       // 4) UI 전역 상태(선택): 기존 store와도 동기화
-      setUserState("user-login");
       setProgress(1);
 
       // 5) UX 메시지

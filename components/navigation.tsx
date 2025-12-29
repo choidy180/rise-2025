@@ -24,7 +24,7 @@ const Navigation = () => {
       <BtnBox>
         {status === "unauth" && (
           <>
-            <BtnVariantGhost
+            {/* <BtnVariantGhost
               type="button"
               onClick={handleLogin}
               aria-label="로그인"
@@ -38,15 +38,15 @@ const Navigation = () => {
               aria-label="회원가입"
             >
               회원가입
-            </BtnVariantPrimary>
+            </BtnVariantPrimary> */}
           </>
         )}
 
-        {status === "auth" && (
+        {/* {status === "auth" && (
           <BtnVariantDanger type="button" onClick={logout} aria-label="로그아웃">
             로그아웃
           </BtnVariantDanger>
-        )}
+        )} */}
       </BtnBox>
     </Container>
   );

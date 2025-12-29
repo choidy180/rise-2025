@@ -8,10 +8,10 @@ import {
   useState,
   useCallback,
 } from "react";
-// ✅ [수정] keyframes import 추가
 import styled, { keyframes } from "styled-components";
-import MicVisualizer from "./mic-visualizer"; 
-import { CHECKUP_QUESTIONS, AnswerOption } from "@/data/questionnaire/questionnaire-data";
+import MicVisualizer from "./mic-visualizer";
+// ✅ 데이터 파일 경로는 사용하시는 환경에 맞춰주세요
+import { AnswerOption_REMAKE, CHECKUP_QUESTIONS_REMAKE } from "@/data/questionnaire/questionnaire-data-remake"; 
 
 // --- Types ---
 export interface SurveyItem {
@@ -40,40 +40,44 @@ interface Props {
 const TTS_DEFAULT_RATE = 1.0;
 const TTS_DEFAULT_LANG = "ko-KR";
 
-const DEFAULT_OPTIONS: AnswerOption[] = [
-  { value: 1, label: "전혀 그렇지 않다" },
-  { value: 2, label: "거의 그렇지 않다" },
-  { value: 3, label: "가끔 그렇다" },
-  { value: 4, label: "자주 그렇다" },
-  { value: 5, label: "매우 그렇다" },
-  { value: -1, label: "잘 모르겠음" },
+// 데이터가 없을 경우를 대비한 기본값
+const DEFAULT_OPTIONS: AnswerOption_REMAKE[] = [
+  { value: 1, label: "전혀 그렇지 않다", keywords: [] },
+  { value: 2, label: "거의 그렇지 않다", keywords: [] },
+  { value: 3, label: "가끔 그렇다", keywords: [] },
+  { value: 4, label: "자주 그렇다", keywords: [] },
+  { value: 5, label: "매우 그렇다", keywords: [] },
+  { value: -1, label: "잘 모르겠음", keywords: [] },
 ];
 
-function matchVoiceToOption(spokenText: string, options: AnswerOption[]): number | null {
+function matchVoiceToOption(spokenText: string, options: AnswerOption_REMAKE[]): number | null {
   const text = spokenText.replace(/\s+/g, "").toLowerCase();
 
+  // 1순위: 데이터(options)에 정의된 keywords와 매칭 (가장 정확함)
+  for (const opt of options) {
+    if (opt.keywords && opt.keywords.length > 0) {
+      const isMatch = opt.keywords.some((kw) => {
+        const cleanKw = kw.replace(/\s+/g, "").toLowerCase();
+        return text.includes(cleanKw);
+      });
+      if (isMatch) return opt.value;
+    }
+  }
+
+  // 2순위: "1번", "2번" 같은 번호 직접 언급 매칭 (보조 수단)
   const indexPatterns = [
     { idx: 0, keywords: ["1번", "일번", "첫번째", "첫번", "하나", "원"] },
     { idx: 1, keywords: ["2번", "이번", "두번째", "두번", "둘", "투"] },
     { idx: 2, keywords: ["3번", "삼번", "세번째", "세번", "셋", "쓰리"] },
     { idx: 3, keywords: ["4번", "사번", "네번째", "네번", "넷", "포"] },
     { idx: 4, keywords: ["5번", "오번", "다섯번째", "다섯번", "다섯", "파이브"] },
-    { 
-      idx: -1, 
-      keywords: [
-        "모름", "몰라", "마지막", 
-        "모르겠는데", "모르겠어", "모르겠", "잘모르", "전혀모르", "아직모르",
-        "글쎄", "확실하지않", "확실치않", 
-        "기억안", "기억이안", "생각안", "가물가물",
-        "패스", "넘어가", "답변불가", "알수없"
-      ] 
-    },
+    { idx: -1, keywords: ["모름", "몰라", "기억안", "글쎄", "패스"] },
   ];
 
   for (const p of indexPatterns) {
     if (p.idx === -1) {
        if (p.keywords.some(k => text.includes(k))) {
-          const unknownOpt = options.find(o => o.value === -1);
+          const unknownOpt = options.find(o => o.value === -1 || o.value === 5);
           if (unknownOpt) return unknownOpt.value;
        }
        continue;
@@ -86,37 +90,6 @@ function matchVoiceToOption(spokenText: string, options: AnswerOption[]): number
     }
   }
 
-  for (const opt of options) {
-    const label = opt.label.replace(/\s+/g, ""); 
-    const keywords: string[] = [label];
-
-    if (
-      label.includes("않음") || 
-      label.includes("없음") || 
-      label.includes("안함") || 
-      label.includes("비흡연") || 
-      label.includes("전혀")
-    ) {
-      keywords.push("아니", "아니요", "노", "no", "never", "아뇨", "안해", "안피워", "안펴", "끊었어", "없어", "안먹어");
-    }
-
-    if (
-      label.includes("피움") || 
-      label.includes("흡연") || 
-      label.includes("합니다") || 
-      label.includes("있음") ||
-      label.includes("매우") || 
-      label.includes("자주")
-    ) {
-      keywords.push("네", "예", "응", "어", "yes", "맞아", "그렇", "오케이", "ok", "피워", "피움", "펴", "함", "해", "있어");
-    }
-
-    if (label.includes("가끔") || label.includes("보통")) keywords.push("중간", "그저", "때때로");
-    if (label.includes("자주")) keywords.push("종종", "빈번", "많이");
-
-    if (keywords.some((k) => text.includes(k))) return opt.value;
-  }
-  
   return null;
 }
 
@@ -133,20 +106,22 @@ export default function VerticalStepper({
   const qData = useMemo(() => {
     let rawItems;
     if (questions && questions.length > 0) {
+      // 문자열 배열만 들어온 경우 처리
       rawItems = questions.map((q, i) => ({
         id: i,
         category: "general",
         type: "scale" as const,
         question: q,
-        options: undefined, 
+        options: DEFAULT_OPTIONS, 
       }));
     } else {
-      const limit = total > 0 ? total : CHECKUP_QUESTIONS.length;
-      rawItems = CHECKUP_QUESTIONS.slice(0, limit);
+      const limit = total > 0 ? total : CHECKUP_QUESTIONS_REMAKE.length;
+      rawItems = CHECKUP_QUESTIONS_REMAKE.slice(0, limit);
     }
     
     return rawItems.map((item) => ({
       ...item,
+      // 질문 앞에 붙은 번호 제거 (TTS용)
       question: item.question.replace(/^[\d\.]+\s*/, "")
     }));
   }, [questions, total]);
@@ -233,7 +208,10 @@ export default function VerticalStepper({
     if (isMicError) return;
 
     window.speechSynthesis.cancel();
-    if (commandRecRef.current) commandRecRef.current.abort();
+    if (commandRecRef.current) {
+        // TTS 시작 전 음성인식 중단 -> 이때 onend가 호출됨
+        commandRecRef.current.abort();
+    }
 
     isSpeakingRef.current = true;
     setSpeaking(true);
@@ -257,6 +235,7 @@ export default function VerticalStepper({
     u.onend = () => {
       isSpeakingRef.current = false;
       setSpeaking(false);
+      // TTS가 끝나면 음성인식 다시 시작
       if (hasStarted && !isMicError && !isTransitioningRef.current) {
           setTimeout(startHotwordListening, 100);
       }
@@ -273,7 +252,7 @@ export default function VerticalStepper({
   const startHotwordListening = useCallback(async () => {
     if (isMicError) return;
     if (isSpeakingRef.current || !hasStarted) return;
-    if (commandRecRef.current) return;
+    if (commandRecRef.current) return; // 이미 실행 중이면 패스
     if (isTransitioningRef.current) return;
 
     const SR: any = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -291,23 +270,35 @@ export default function VerticalStepper({
     };
 
     rec.onend = () => {
-      setCommandListening(false);
       commandRecRef.current = null;
-      if (!isMicError && !isSpeakingRef.current && hasStarted && !isTransitioningRef.current) {
+      
+      // ✅ [중요 수정] 깜빡임 방지 로직
+      // 재시작해야 하는 상황(TTS 중 아님, 에러 아님, 전환 중 아님)이라면
+      // setCommandListening(false)를 호출하지 않고 바로 재시작을 예약합니다.
+      const shouldRestart = !isMicError && !isSpeakingRef.current && hasStarted && !isTransitioningRef.current;
+
+      if (shouldRestart) {
+        // 여기서 false로 만들지 않음으로써 UI 깜빡임을 방지
         setTimeout(() => startHotwordListening(), 200);
+      } else {
+        // 진짜 멈춰야 하는 상황(TTS 시작, 페이지 이동 등)에서만 UI 끄기
+        setCommandListening(false);
       }
     };
 
     rec.onerror = (e: any) => {
-      setCommandListening(false);
       commandRecRef.current = null;
       if (['audio-capture', 'not-allowed', 'service-not-allowed'].includes(e.error)) {
+        setCommandListening(false);
         setIsMicError(true);
         killAudio();
         return;
       }
+      // 에러가 나도 재시작 시도 (no-speech 등)
       if (!isMicError && !isSpeakingRef.current && hasStarted && !isTransitioningRef.current) {
         setTimeout(() => startHotwordListening(), 500);
+      } else {
+          setCommandListening(false);
       }
     };
 
@@ -324,6 +315,7 @@ export default function VerticalStepper({
       const currentActive = activeRef.current;
       const currentQItem = qData[currentActive];
       
+      // options가 없으면 DEFAULT_OPTIONS 사용
       const matchedValue = matchVoiceToOption(normalized, currentQItem?.options || DEFAULT_OPTIONS);
       let answerUpdated = false;
 
@@ -352,9 +344,18 @@ export default function VerticalStepper({
     isTransitioningRef.current = true;
     if (ttsTimeoutRef.current) clearTimeout(ttsTimeoutRef.current);
     
+    // 페이지 넘어갈 때 음성인식 UI 잠시 끄기 (TTS 준비)
+    setCommandListening(false);
+
     setTimeout(() => {
       setAnswerLiveText("");
-      setActive(prev => prev + 1);
+      setActive(prev => {
+        // [로직 유지] 4번 문항(index 3)에서 답이 1(전혀그렇지않다/아니오)이면 18번(index 17)로 점프
+        if (prev === 3 && answersRef.current[3] === 1) {
+            return 17;
+        }
+        return prev + 1;
+      });
     }, delay);
   };
 
@@ -362,8 +363,17 @@ export default function VerticalStepper({
     if (active > 0) {
       isTransitioningRef.current = true;
       if (ttsTimeoutRef.current) clearTimeout(ttsTimeoutRef.current);
+      
+      setCommandListening(false);
       setAnswerLiveText("");
-      setActive(prev => prev - 1);
+      
+      setActive(prev => {
+        // [로직 유지] 18번 문항(index 17)에서 이전으로 갈 때, 4번 답이 1이면 4번으로 복귀
+        if (prev === 17 && answersRef.current[3] === 1) {
+            return 3;
+        }
+        return prev - 1;
+      });
     }
   };
 
@@ -428,7 +438,6 @@ export default function VerticalStepper({
   };
 
   const handleFinishClick = () => {
-    // onFinish가 없어도 안전하게 실행
     const validAnswers = answers.filter((v) => v !== null) as number[];
     const sum = validAnswers.reduce((a, b) => {
         return a + (b === -1 ? 0 : b);
@@ -479,10 +488,6 @@ export default function VerticalStepper({
     );
   }
 
-  // 기존에는 여기서 active를 기준으로 isLast를 계산했기 때문에
-  // 마지막 페이지에 도달하면 모든 이전 카드들이 isLast = true가 되어버리는 문제가 있었습니다.
-  // const isLast = active === qTexts.length - 1; <--- (삭제됨)
-
   return (
     <Viewport ref={containerRef} $h={height}>
       {isMicError && (
@@ -511,7 +516,6 @@ export default function VerticalStepper({
           const state = i < active ? "past" : i === active ? "active" : "future";
           const itemOpts = qData[i].options || DEFAULT_OPTIONS;
           
-          // ✅ 수정됨: 각 카드가 스스로 마지막 문항인지 확인해야 함
           const isItemLast = i === qTexts.length - 1;
 
           return (
@@ -555,7 +559,6 @@ export default function VerticalStepper({
 
               <Footer>
                 <Btn onClick={triggerPrev} disabled={i === 0}>이전</Btn>
-                {/* ✅ 수정됨: isItemLast 변수를 사용하여 해당 카드만 완료 버튼을 표시 */}
                 {!isItemLast ? (
                   <Btn onClick={() => triggerNext(0)} disabled={answers[i] == null}>다음</Btn>
                 ) : (
@@ -576,7 +579,6 @@ export default function VerticalStepper({
 
 // --- Styles ---
 
-// ✅ [수정] Keyframes를 별도로 정의해야 styled-components 문법 오류 방지
 const popIn = keyframes`
   from { transform: scale(0.9); opacity: 0; }
   to { transform: scale(1); opacity: 1; }
@@ -596,7 +598,6 @@ const ModalOverlay = styled.div`
   backdrop-filter: blur(5px);
 `;
 
-// ✅ [수정] 정의된 keyframes 변수를 사용
 const ModalContent = styled.div`
   background: white;
   padding: 32px;
