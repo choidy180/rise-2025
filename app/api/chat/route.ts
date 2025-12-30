@@ -13,8 +13,7 @@ export async function POST(req: NextRequest) {
 
     const genAI = new GoogleGenerativeAI(apiKey);
 
-    // ✅ [핵심 수정] 
-    // 1.5-flash (404 에러) -> gemini-flash-latest (디버그 리스트에 존재함, 사용량 넉넉함)
+    // ✅ 기존 설정 유지: gemini-flash-latest 사용
     const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
 
     // 1. 히스토리 변환
@@ -23,7 +22,7 @@ export async function POST(req: NextRequest) {
       parts: [{ text: msg.text }],
     })) : [];
 
-    // 2. 에러 방지: 첫 메시지가 model이면 user 메시지 강제 주입
+    // 2. 에러 방지: 첫 메시지가 model이면 user 메시지 강제 주입 (채팅 모드일 때만 유효)
     if (chatHistory.length > 0 && chatHistory[0].role === "model") {
       chatHistory.unshift({
         role: "user",
@@ -34,9 +33,28 @@ export async function POST(req: NextRequest) {
     const chat = model.startChat({ history: chatHistory });
 
     let finalPrompt = message;
-    
-    // 3. 페르소나 설정
-    if (context) {
+
+    // ✅ [수정된 부분] 
+    // 요청 메시지에 "의사가 빠르게 파악" 이라는 키워드가 있으면 -> [의사 요약 모드]로 동작
+    // 그 외에는 -> 기존 [CliniVoice 채팅 모드]로 동작
+    const isDoctorSummaryRequest = message.includes("의사가 빠르게 파악");
+
+    if (isDoctorSummaryRequest && context) {
+      // 🏥 Case A: 의사 요약 모드 (인사말 생략, 딱딱한 말투)
+      finalPrompt = `
+      [시스템 역할]
+      당신은 의료 데이터를 분석하여 의료진에게 전달하는 AI 어시스턴트입니다.
+      
+      [지시사항]
+      1. 아래 [건강 문진표 결과]를 바탕으로 의사가 환자 상태를 3초 만에 파악할 수 있도록 3줄로 핵심만 요약하세요.
+      2. 사용자와 대화하지 말고, 분석 결과만 출력하세요.
+      3. 말투는 반드시 '~함', '~있음', '~없음' 형태의 개조식(건조한체)을 사용하세요. (존댓말 금지)
+      
+      [건강 문진표 결과]
+      ${context}
+      `;
+    } else if (context) {
+      // 🗣️ Case B: 기존 환자 상담 모드 (CliniVoice 페르소나 적용)
       finalPrompt = `
       [시스템 역할 설정]
       당신은 'CliniVoice' AI 건강 분석가입니다.
@@ -54,7 +72,7 @@ export async function POST(req: NextRequest) {
       `;
     }
 
-    console.log("🚀 Sending request to Gemini (gemini-flash-latest)...");
+    console.log(`🚀 Sending request to Gemini (${isDoctorSummaryRequest ? 'Doctor Summary' : 'Chat Mode'})...`);
     
     const result = await chat.sendMessage(finalPrompt);
     const response = await result.response;

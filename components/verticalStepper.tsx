@@ -464,6 +464,49 @@ export default function VerticalStepper({
     }
   };
 
+  const handleDebugRandomFill = () => {
+    // 1. 진행 중인 오디오/음성인식 즉시 중단
+    killAudio();
+
+    // 2. 모든 문항에 대해 랜덤 답변 생성
+    const randomAnswers = qData.map((q) => {
+      // 해당 질문의 옵션 목록 (없으면 기본값)
+      const opts = q.options || DEFAULT_OPTIONS;
+      
+      // "모름(-1)"을 제외하고 랜덤 선택하고 싶다면 필터링 (선택사항)
+      // 여기서는 모든 옵션 중 하나를 랜덤으로 뽑습니다.
+      const randomOpt = opts[Math.floor(Math.random() * opts.length)];
+      return randomOpt.value;
+    });
+
+    // 3. 상태 업데이트 (UI 반영용)
+    setAnswers(randomAnswers);
+
+    // 4. 결과 계산 (handleFinishClick 로직과 유사)
+    const validAnswers = randomAnswers.filter((v) => v !== null) as number[];
+    const sum = validAnswers.reduce((a, b) => a + (b === -1 ? 0 : b), 0);
+    const effectiveCount = validAnswers.filter((v) => v !== -1).length;
+    const mean = effectiveCount > 0 ? sum / effectiveCount : null;
+
+    const result: SurveyResult = {
+      total: qTexts.length,
+      answeredCount: validAnswers.length,
+      sum,
+      mean,
+      items: qData.map((q, idx) => ({
+        index: idx,
+        question: q.question,
+        answer: randomAnswers[idx],
+      })),
+      answers: randomAnswers,
+    };
+
+    // 5. 완료 콜백 실행
+    if (onFinish) {
+      onFinish(result);
+    }
+  };
+
   const manualPlay = () => {
       const q = qData[active];
       if (q) {
@@ -507,6 +550,9 @@ export default function VerticalStepper({
       )}
 
       <MicVisualizer isListening={commandListening} />
+      <DebugFloatingBtn onClick={handleDebugRandomFill}>
+        🎲 랜덤 완료 (TEST)
+      </DebugFloatingBtn>
 
       <Track ref={trackRef} style={{ transform: `translateY(${translateY}px)` }}>
         <Spacer style={{ height: "30vh" }} />
@@ -807,4 +853,34 @@ const Btn = styled.button`
 
 const BtnDanger = styled(Btn)`
   background: #ef4444;
+`;
+
+const DebugFloatingBtn = styled.button`
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 9999;
+  
+  background: linear-gradient(135deg, #ec4899, #8b5cf6); /* 눈에 잘 띄는 그라데이션 */
+  color: white;
+  border: none;
+  padding: 12px 20px;
+  border-radius: 30px;
+  
+  font-size: 14px;
+  font-weight: 700;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  opacity: 0.8;
+
+  &:hover {
+    opacity: 1;
+    transform: scale(1.05) translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+  }
+
+  &:active {
+    transform: scale(0.95);
+  }
 `;

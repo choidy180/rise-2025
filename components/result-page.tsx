@@ -4,10 +4,13 @@ import React, { useState, useMemo } from "react";
 import styled from "styled-components";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
-import { CHECKUP_QUESTIONS, CheckupQuestion } from "@/data/questionnaire/questionnaire-data"; 
+
+// ✅ 사용자 경로에 맞춘 import (그대로 유지)
+import { CHECKUP_QUESTIONS_REMAKE, CheckupQuestion } from "@/data/questionnaire/questionnaire-data-remake";
 import { SurveyResult } from "@/utils/survey-summary";
 import { ChatMessage, saveHealthRecord } from "@/utils/storage";
 import GeminiChat from "./gemini-chat";
+import SimpleScenarioPage from "./voice-chatbot-modal";
 
 interface Props {
   result: SurveyResult;
@@ -17,16 +20,27 @@ interface Props {
   userName?: string;
 }
 
-// 🌈 카테고리별 아이콘 매핑 (이모지 사용으로 별도 라이브러리 없이 즉시 적용)
-const getCategoryIcon = (category: string) => {
-  if (category.includes("질환") || category.includes("가족")) return "🏥";
-  if (category.includes("흡연")) return "🚬";
-  if (category.includes("음주")) return "🍺";
-  if (category.includes("운동") || category.includes("신체")) return "💪";
-  if (category.includes("정신") || category.includes("기억")) return "🧠";
-  if (category.includes("영양") || category.includes("식사")) return "🥗";
-  if (category.includes("노인") || category.includes("낙상")) return "⚠️";
-  return "📋";
+// 🏗️ 1. 대분류 그룹핑 로직
+const getDisplaySection = (rawCategory: string) => {
+  if (rawCategory.includes("흡연") || rawCategory.includes("전자담배") || rawCategory.includes("액상") || rawCategory.includes("금연")) {
+    return { title: "흡연 및 담배 습관", icon: "🚬", order: 2 };
+  }
+  if (rawCategory.includes("음주")) {
+    return { title: "음주 습관", icon: "🍺", order: 3 };
+  }
+  if (rawCategory.includes("운동") || rawCategory.includes("고강도") || rawCategory.includes("중강도") || rawCategory.includes("근력")) {
+    return { title: "신체 활동 (운동)", icon: "💪", order: 4 };
+  }
+  if (rawCategory.includes("식사") || rawCategory.includes("영양") || rawCategory.includes("건강식") || rawCategory.includes("주의식")) {
+    return { title: "식생활 및 영양", icon: "🥗", order: 5 };
+  }
+  if (rawCategory.includes("기억") || rawCategory.includes("판단") || rawCategory.includes("성격")) {
+    return { title: "정신 건강 및 인지", icon: "🧠", order: 6 };
+  }
+  if (rawCategory.includes("질환") || rawCategory.includes("가족") || rawCategory.includes("감염") || rawCategory.includes("예방") || rawCategory.includes("낙상") || rawCategory.includes("배뇨")) {
+    return { title: "질환력 및 신체 기능", icon: "🏥", order: 1 };
+  }
+  return { title: "기타 및 일상 생활", icon: "📋", order: 7 };
 };
 
 // 📊 미니 차트 컴포넌트
@@ -34,16 +48,19 @@ const MiniBar = ({ value, max, color }: { value: number; max: number; color: str
   const percent = Math.min((value / max) * 100, 100);
   return (
     <BarContainer>
-      <BarFill 
-        initial={{ width: 0 }} 
-        animate={{ width: `${percent}%` }} 
+      <BarFill
+        initial={{ width: 0 }}
+        animate={{ width: `${percent}%` }}
         transition={{ duration: 1, ease: "easeOut" }}
-        $color={color} 
+        $color={color}
       />
     </BarContainer>
   );
 };
 
+// ----------------------------------------------------------------------
+// Main Component
+// ----------------------------------------------------------------------
 export default function ResultPage({
   result,
   onRestart,
@@ -54,27 +71,45 @@ export default function ResultPage({
   const router = useRouter();
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
 
-  // 🔄 데이터 그룹화 (카테고리별로 묶기)
-  const groupedData = useMemo(() => {
-    const groups: Record<string, { q: CheckupQuestion; val: number; label: string }[]> = {};
-    
-    CHECKUP_QUESTIONS.forEach((q, idx) => {
-      // 데이터 매칭 (인덱스 보정)
-      const myVal = result.answers[idx] || 0;
-      let label = "-";
+  // 🔄 2. 데이터 그룹화 (Section 별로 데이터 구조 재편성)
+  const groupedSections = useMemo(() => {
+    const sections: Record<string, { 
+      title: string; 
+      icon: string; 
+      order: number;
+      items: { q: CheckupQuestion; val: number; label: string; isSkipped: boolean }[] 
+    }> = {};
+
+    CHECKUP_QUESTIONS_REMAKE.forEach((q, idx) => {
+      // 1) 답변 값 찾기 (props로 넘어온 result 사용)
+      const myVal = result.answers[idx]; 
       
-      // 라벨 찾기
-      if (q.options) {
-        const found = q.options.find(opt => opt.value === myVal);
+      // 답변이 null/0/undefined이면 건너뛴 항목
+      const isSkipped = myVal === null || myVal === 0 || myVal === undefined;
+      const safeVal = isSkipped ? 0 : myVal;
+
+      // 2) 라벨 텍스트 찾기
+      let label = "-";
+      if (!isSkipped && q.options) {
+        const found = q.options.find((opt) => opt.value === safeVal);
         if (found) label = found.label;
-      } else {
-        label = myVal > 0 ? `${myVal}` : "-";
+      } else if (isSkipped) {
+        label = "해당 없음";
       }
 
-      if (!groups[q.category]) groups[q.category] = [];
-      groups[q.category].push({ q, val: myVal, label });
+      // 3) 대분류 섹션 매핑
+      const sectionInfo = getDisplaySection(q.category);
+      const sectionKey = sectionInfo.title;
+
+      if (!sections[sectionKey]) {
+        sections[sectionKey] = { ...sectionInfo, items: [] };
+      }
+
+      sections[sectionKey].items.push({ q, val: safeVal, label, isSkipped });
     });
-    return groups;
+
+    // order 순으로 정렬하여 배열로 반환
+    return Object.values(sections).sort((a, b) => a.order - b.order);
   }, [result]);
 
   const handleSave = () => {
@@ -102,74 +137,97 @@ export default function ResultPage({
           <DashboardHeader>
             <TitleArea>
               <MainTitle>
-                <Highlight>{userName}</Highlight>님의 건강 프로필
+                <Highlight>{userName}</Highlight>님의 건강 리포트
               </MainTitle>
               <SubDesc>
-                {readOnly ? "지난 기록 조회 중" : "전체 문진 응답 분석 리포트"}
+                {readOnly ? "지난 기록 조회" : "응답 내용을 종합적으로 분석했습니다."}
               </SubDesc>
             </TitleArea>
-            {!readOnly && <SaveBadge onClick={handleSave}>💾 저장하기</SaveBadge>}
+            <SimpleScenarioPage/>
+            {!readOnly && <SaveBadge onClick={handleSave}>💾 결과 저장</SaveBadge>}
           </DashboardHeader>
 
-          {/* 🧩 Masonry Grid Layout (핵심: 카드 형태로 묶어서 보여줌) */}
-          <GridContainer>
-            {Object.entries(groupedData).map(([category, items], catIndex) => (
-              <CategoryCard 
-                key={category}
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: catIndex * 0.1 }}
-              >
-                <CardHeader>
-                  <IconBox>{getCategoryIcon(category)}</IconBox>
-                  <CategoryTitle>{category}</CategoryTitle>
-                </CardHeader>
-                
-                <ItemList>
-                  {items.map(({ q, val, label }, i) => {
-                    const isSkipped = val === 0;
-                    // 색상 로직: 역방향이면(질병 등) 값이 클수록 빨강, 아니면 파랑
-                    const isBad = q.isReverse ? val > 1 : val === 1; 
-                    const statusColor = isSkipped ? "#e2e8f0" : isBad ? "#ef4444" : "#3b82f6";
-                    const maxVal = q.options ? q.options.length : 5;
+          {/* 🧩 섹션별 카드 리스트 */}
+          <SectionsContainer>
+            {groupedSections.map((section, secIdx) => {
+              // 유효한 응답이 하나도 없는 섹션은 렌더링 제외
+              const hasValidAnswers = section.items.some(i => !i.isSkipped);
+              if (!hasValidAnswers) return null;
 
-                    return (
-                      <ItemRow key={q.id}>
-                        <QuestionText>{q.question}</QuestionText>
-                        
-                        <ResultArea>
-                          {/* 1. 척도형(Scale)은 그래프로 표현 */}
-                          {(q.type === "scale" || q.type === "select") && !isSkipped && (
-                            <MiniChartWrapper>
-                              <MiniBar value={val} max={maxVal} color={statusColor} />
-                              <ValueText $color={statusColor}>{label}</ValueText>
-                            </MiniChartWrapper>
-                          )}
+              return (
+                <SectionCard
+                  key={section.title}
+                  initial={{ y: 20, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  transition={{ delay: secIdx * 0.1 }}
+                >
+                  <SectionHeader>
+                    <IconBox>{section.icon}</IconBox>
+                    <SectionTitle>{section.title}</SectionTitle>
+                  </SectionHeader>
 
-                          {/* 2. 예/아니오(YesNo)는 뱃지로 표현 */}
-                          {q.type === "yesno" && (
-                            <Badge $color={statusColor} $isOutline={isSkipped}>
-                              {label}
-                            </Badge>
-                          )}
+                  <SectionContent>
+                    {section.items.map(({ q, val, label, isSkipped }) => {
+                      if (isSkipped) return null; // 건너뛴 항목 숨김
 
-                          {/* 3. 응답 없음 */}
-                          {isSkipped && <SkippedDash>-</SkippedDash>}
-                        </ResultArea>
-                      </ItemRow>
-                    );
-                  })}
-                </ItemList>
-              </CategoryCard>
-            ))}
-          </GridContainer>
+                      // 상태 색상 로직
+                      let statusColor = "#3b82f6"; // 기본 Blue
+                      
+                      if (q.isReverse) {
+                         // 역방향: 값이 높을수록 부정적 (예: 질환 있음=2)
+                         if (val >= (q.options?.length || 5) / 2) statusColor = "#f59e0b"; // Orange
+                         if (val === (q.options?.length || 5) || (val === 2 && q.type === 'yesno')) statusColor = "#ef4444"; // Red
+                      } else {
+                         // 정방향: 값이 높을수록 긍정적 (예: 운동 자주 함=5)
+                         if (val === 1) statusColor = "#ef4444"; // Red
+                         else if (val === (q.options?.length || 5)) statusColor = "#10b981"; // Green
+                      }
+
+                      // Yes/No 타입 특이 케이스 처리
+                      if (q.type === 'yesno') {
+                        if (q.isReverse && val === 2) statusColor = "#ef4444"; // "질환 있음" -> Red
+                        else if (!q.isReverse && val === 1) statusColor = "#ef4444"; // "예방접종 안함" -> Red
+                        else statusColor = "#3b82f6"; // 그 외 Blue
+                      }
+
+                      return (
+                        <ItemRow key={q.id}>
+                          <QuestionBox>
+                            <QCategoryLabel>{q.category}</QCategoryLabel>
+                            <QuestionText>{q.question}</QuestionText>
+                          </QuestionBox>
+
+                          <AnswerBox>
+                            {/* Yes/No 타입 */}
+                            {q.type === "yesno" && (
+                              <Badge $color={statusColor} $bgOpacity={0.1}>
+                                {label}
+                              </Badge>
+                            )}
+
+                            {/* 척도/선택형 타입 */}
+                            {(q.type === "scale" || q.type === "select") && (
+                              <ScaleWrapper>
+                                <ValueText $color={statusColor}>{label}</ValueText>
+                                <MiniBar value={val} max={q.options?.length || 5} color={statusColor} />
+                              </ScaleWrapper>
+                            )}
+                          </AnswerBox>
+                        </ItemRow>
+                      );
+                    })}
+                  </SectionContent>
+                </SectionCard>
+              );
+            })}
+          </SectionsContainer>
 
           <FooterBtnGroup>
-             {!readOnly ? (
-               <RestartBtn onClick={onRestart}>↺ 처음으로 돌아가기</RestartBtn>
-             ) : (
-               <RestartBtn onClick={() => router.push("/history")}>목록으로</RestartBtn>
-             )}
+            {!readOnly ? (
+              <RestartBtn onClick={onRestart}>↺ 처음으로 돌아가기</RestartBtn>
+            ) : (
+              <RestartBtn onClick={() => router.push("/history")}>목록으로</RestartBtn>
+            )}
           </FooterBtnGroup>
         </DashboardColumn>
 
@@ -189,101 +247,129 @@ export default function ResultPage({
   );
 }
 
-// --- ✨ 스타일 컴포넌트 (트렌디 & 전문가 스타일) ---
+// ----------------------------------------------------------------------
+// Styled Components
+// ----------------------------------------------------------------------
 
 const PageLayout = styled(motion.div)`
   width: 100%; height: 100%; display: flex; justify-content: center; 
-  padding: 30px; background: #f8fafc; overflow: hidden;
+  padding: 30px; background: #f1f5f9; overflow: hidden;
 `;
 
 const ContentWrapper = styled.div`
-  display: flex; width: 100%; max-width: 1400px; height: 100%; gap: 30px;
+  display: flex; width: 100%; max-width: 1600px; height: 100%; gap: 30px;
   @media (max-width: 1100px) { flex-direction: column; overflow-y: auto; }
 `;
 
 const DashboardColumn = styled.div`
-  flex: 3; overflow-y: auto; padding-right: 10px;
+  flex: 2; overflow-y: auto; padding-right: 12px;
+  /* 스크롤바 커스텀 */
   &::-webkit-scrollbar { width: 6px; }
   &::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
 `;
 
 const ChatColumn = styled.div`
-  flex: 1.2; min-width: 380px; height: 100%;
+  flex: 1; min-width: 400px; height: 100%;
   @media (max-width: 1100px) { height: 600px; flex: none; }
 `;
 const StickyChatWrapper = styled.div` position: sticky; top: 0; height: 100%; `;
 
-// 헤더 디자인
+// 헤더
 const DashboardHeader = styled.div`
   display: flex; justify-content: space-between; align-items: flex-end;
-  margin-bottom: 30px;
+  margin-bottom: 24px; padding: 0 4px;
 `;
 const TitleArea = styled.div` display: flex; flex-direction: column; gap: 4px; `;
-const MainTitle = styled.h1` font-size: 28px; font-weight: 800; color: #1e293b; letter-spacing: -0.5px; margin: 0; `;
-const Highlight = styled.span` color: #3b82f6; `;
+const MainTitle = styled.h1` font-size: 26px; font-weight: 800; color: #1e293b; margin: 0; letter-spacing: -0.5px; `;
+const Highlight = styled.span` color: #2563eb; `;
 const SubDesc = styled.span` font-size: 14px; color: #64748b; font-weight: 500; `;
 
 const SaveBadge = styled.button`
-  padding: 10px 20px; background: #1e293b; color: white; border-radius: 30px;
-  font-size: 14px; font-weight: 700; border: none; cursor: pointer;
-  transition: all 0.2s; box-shadow: 0 4px 10px rgba(30, 41, 59, 0.2);
-  &:hover { transform: translateY(-2px); background: #334155; }
+  padding: 8px 16px; background: #1e293b; color: white; border-radius: 8px;
+  font-size: 13px; font-weight: 600; border: none; cursor: pointer;
+  transition: all 0.2s; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  &:hover { background: #334155; transform: translateY(-1px); }
 `;
 
-// 📦 그리드 레이아웃 (핵심: 카드 묶음)
-const GridContainer = styled.div`
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); // 반응형 카드 배치
-  gap: 24px;
-  margin-bottom: 40px;
+// 섹션 컨테이너
+const SectionsContainer = styled.div`
+  display: flex; flex-direction: column; gap: 24px; padding-bottom: 40px;
 `;
 
-const CategoryCard = styled(motion.div)`
-  background: white; border-radius: 24px; padding: 24px;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.03); border: 1px solid #f1f5f9;
-  display: flex; flex-direction: column; gap: 20px;
-  &:hover { box-shadow: 0 15px 35px rgba(0,0,0,0.06); transform: translateY(-2px); transition: all 0.3s ease; }
+const SectionCard = styled(motion.div)`
+  background: white; border-radius: 20px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+  overflow: hidden;
 `;
 
-const CardHeader = styled.div` display: flex; align-items: center; gap: 12px; padding-bottom: 16px; border-bottom: 2px solid #f8fafc; `;
+const SectionHeader = styled.div`
+  padding: 20px 24px; display: flex; align-items: center; gap: 12px;
+  border-bottom: 1px solid #f1f5f9; background: #fff;
+`;
 const IconBox = styled.div`
-  width: 40px; height: 40px; background: #f0f9ff; border-radius: 12px;
-  display: flex; align-items: center; justify-content: center; font-size: 20px;
+  width: 36px; height: 36px; background: #eff6ff; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center; font-size: 18px;
 `;
-const CategoryTitle = styled.h3` font-size: 18px; font-weight: 700; color: #334155; margin: 0; `;
+const SectionTitle = styled.h3` font-size: 17px; font-weight: 700; color: #334155; margin: 0; `;
 
-const ItemList = styled.div` display: flex; flex-direction: column; gap: 14px; `;
+const SectionContent = styled.div`
+  padding: 0 24px;
+`;
+
 const ItemRow = styled.div`
-  display: flex; justify-content: space-between; align-items: center; gap: 16px;
+  display: flex; justify-content: space-between; align-items: center; gap: 20px;
+  padding: 16px 0;
+  border-bottom: 1px solid #f8fafc;
+  
+  &:last-child { border-bottom: none; }
+  
+  @media (max-width: 600px) { flex-direction: column; align-items: flex-start; gap: 12px; }
 `;
 
+const QuestionBox = styled.div` flex: 1; `;
+const QCategoryLabel = styled.span`
+  display: inline-block; font-size: 11px; font-weight: 600; color: #94a3b8;
+  margin-bottom: 4px; background: #f8fafc; padding: 2px 6px; border-radius: 4px;
+`;
 const QuestionText = styled.div`
-  flex: 1; font-size: 14px; color: #475569; font-weight: 500; line-height: 1.4; word-break: keep-all;
+  font-size: 15px; color: #475569; line-height: 1.5; font-weight: 500; word-break: keep-all;
 `;
 
-const ResultArea = styled.div`
-  display: flex; align-items: center; justify-content: flex-end; min-width: 100px;
+const AnswerBox = styled.div`
+  display: flex; align-items: center; justify-content: flex-end; min-width: 140px;
+  @media (max-width: 600px) { width: 100%; justify-content: flex-start; }
 `;
 
-// 📊 시각화 요소들
-const MiniChartWrapper = styled.div` display: flex; flex-direction: column; align-items: flex-end; gap: 4px; min-width: 80px; `;
-const BarContainer = styled.div` width: 60px; height: 6px; background: #f1f5f9; border-radius: 3px; overflow: hidden; `;
+// 시각화 요소
+const ScaleWrapper = styled.div`
+  display: flex; flex-direction: column; align-items: flex-end; gap: 6px;
+  @media (max-width: 600px) { align-items: flex-start; width: 100%; }
+`;
+
+const BarContainer = styled.div` width: 80px; height: 6px; background: #f1f5f9; border-radius: 3px; overflow: hidden; `;
 const BarFill = styled(motion.div)<{ $color: string }>` height: 100%; background: ${({ $color }) => $color}; border-radius: 3px; `;
-const ValueText = styled.span<{ $color: string }>` font-size: 12px; font-weight: 700; color: ${({ $color }) => $color}; `;
+const ValueText = styled.span<{ $color: string }>` font-size: 14px; font-weight: 700; color: ${({ $color }) => $color}; `;
 
-const Badge = styled.span<{ $color: string; $isOutline?: boolean }>`
-  padding: 6px 12px; border-radius: 8px; font-size: 13px; font-weight: 700;
-  background: ${({ $color, $isOutline }) => $isOutline ? "transparent" : `${$color}15`}; // 투명도 10%
+const Badge = styled.span<{ $color: string; $bgOpacity: number }>`
+  padding: 6px 12px; border-radius: 8px; font-size: 13px; font-weight: 600;
+  background: ${({ $color, $bgOpacity }) => `rgba(${hexToRgb($color)}, ${$bgOpacity})`};
   color: ${({ $color }) => $color};
-  border: 1px solid ${({ $color, $isOutline }) => $isOutline ? "#e2e8f0" : "transparent"};
+  white-space: nowrap;
 `;
 
-const SkippedDash = styled.span` color: #cbd5e1; font-weight: 700; `;
-
-const FooterBtnGroup = styled.div` margin-top: 20px; text-align: center; `;
+const FooterBtnGroup = styled.div` margin-top: 10px; text-align: center; margin-bottom: 40px;`;
 const RestartBtn = styled.button`
-  padding: 14px 28px; background: white; border: 1px solid #cbd5e1; color: #64748b;
-  border-radius: 14px; font-size: 15px; font-weight: 600; cursor: pointer;
+  padding: 12px 24px; background: white; border: 1px solid #cbd5e1; color: #64748b;
+  border-radius: 12px; font-size: 14px; font-weight: 600; cursor: pointer;
   transition: 0.2s;
-  &:hover { background: #f1f5f9; color: #334155; border-color: #94a3b8; }
+  &:hover { background: #f8fafc; color: #334155; border-color: #94a3b8; }
 `;
+
+// Helper for hex opacity
+function hexToRgb(hex: string) {
+  const bigint = parseInt(hex.replace("#", ""), 16);
+  const r = (bigint >> 16) & 255;
+  const g = (bigint >> 8) & 255;
+  const b = bigint & 255;
+  return `${r}, ${g}, ${b}`;
+}

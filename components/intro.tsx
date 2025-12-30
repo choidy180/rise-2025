@@ -36,9 +36,9 @@ const IntroText = () => {
         >
           {/* 아이콘 */}
           <IconWrapper
-             initial={{ y: 20, opacity: 0 }}
-             animate={{ y: 0, opacity: 1 }}
-             transition={{ delay: 0.2, duration: 0.8 }}
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.2, duration: 0.8 }}
           >
             📋
           </IconWrapper>
@@ -60,7 +60,7 @@ const IntroText = () => {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.8, duration: 0.5 }}
               >
-                 {description}
+                {description}
               </SubTitle>
             </TitleBox>
           )}
