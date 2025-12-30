@@ -4,11 +4,9 @@ import React, { useState } from "react";
 import Image from "next/image";
 import styled from "styled-components";
 import LogoImage from "@/public/logo/logo-ai.png";
-import { useAuthStore } from "@/store/auth";
 import { useRouter } from "next/navigation";
 
 const Navigation = () => {
-  const { status } = useAuthStore();
   const router = useRouter();
 
   // 🔐 모달 상태 및 입력값 관리
