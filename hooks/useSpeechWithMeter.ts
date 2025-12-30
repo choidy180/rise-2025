@@ -57,16 +57,19 @@ export function useSpeechWithMeter(
     rec.interimResults = interimResults;
     rec.continuous = continuous;
 
-    rec.onstart = () => { setListening(true); setError(null); };
-    rec.onerror = (e: any) => {
+    // Cast 'rec' to 'any' to bypass TS check for event handlers
+    const recognition: any = rec;
+
+    recognition.onstart = () => { setListening(true); setError(null); };
+    recognition.onerror = (e: any) => {
       const err = e?.error ?? "recognition-error";
       setError(err);
       setListening(false);
       onError?.(err);
       stopAudioGraph(); // 에러 시 오디오도 정리
     };
-    rec.onend = () => { setListening(false); stopAudioGraph(); };
-    rec.onresult = (ev: SpeechRecognitionEvent) => {
+    recognition.onend = () => { setListening(false); stopAudioGraph(); };
+    recognition.onresult = (ev: SpeechRecognitionEvent) => {
       let _inter = "";
       let _final = "";
       for (let i = ev.resultIndex; i < ev.results.length; i++) {
