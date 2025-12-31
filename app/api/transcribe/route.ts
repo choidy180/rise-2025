@@ -2,7 +2,7 @@
 import { NextRequest } from "next/server";
 import OpenAI from "openai";
 
-const openai = new OpenAI({ apiKey: 'AIzaSyBe1YRvHky1oHzLfloAqlu5XSwaMBqafGU' });
+const openai = new OpenAI({ apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY });
 
 export async function POST(req: NextRequest) {
   const formData = await req.formData();

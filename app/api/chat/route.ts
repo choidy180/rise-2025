@@ -5,7 +5,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 export async function POST(req: NextRequest) {
   try {
     const { message, history, context, userName } = await req.json();
-    const apiKey = 'AIzaSyBe1YRvHky1oHzLfloAqlu5XSwaMBqafGU';
+    const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
 
     if (!apiKey) {
       return NextResponse.json({ error: "API Key not found" }, { status: 500 });

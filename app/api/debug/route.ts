@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(req: NextRequest) {
-  const apiKey = 'AIzaSyBe1YRvHky1oHzLfloAqlu5XSwaMBqafGU';
+  const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
 
   if (!apiKey) {
     return NextResponse.json({ error: "API Key Missing" }, { status: 500 });
